@@ -31,7 +31,7 @@ module Calamity.Internal.Utils (
 
 import Calamity.Internal.RunIntoIO
 import Calamity.Types.LogEff
-import Control.Applicative
+import Control.Applicative ()
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Encoding (null_)
 import Data.Default.Class

@@ -25,7 +25,6 @@ import Calamity.Types.Model.Guild
 import Calamity.Types.Snowflake
 import Data.Hashable
 import Data.Kind
-import Data.List (foldl')
 import Data.Maybe (fromJust)
 import Data.Text (Text)
 import Data.Text qualified as T

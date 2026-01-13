@@ -17,7 +17,6 @@ import Calamity.Types.Model.User
 import Calamity.Types.Snowflake
 import Calamity.Types.Upgradeable
 import Data.Flags
-import Data.Foldable (Foldable (foldl'))
 import Data.Maybe (mapMaybe)
 import Data.Vector.Unboxing qualified as V
 import Optics

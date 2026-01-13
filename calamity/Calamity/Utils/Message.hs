@@ -36,7 +36,6 @@ import Calamity.Types.Model.Channel (
 import Calamity.Types.Model.Guild (Emoji (..), Member, Role)
 import Calamity.Types.Model.User (User)
 import Calamity.Types.Snowflake
-import Data.Foldable (Foldable (foldl'))
 import Data.Maybe (fromMaybe)
 import Data.String (IsString, fromString)
 import Data.Text qualified as T

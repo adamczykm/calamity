@@ -4,6 +4,9 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
 
+    flake-compat.url = "github:edolstra/flake-compat";
+    flake-compat.flake = false;
+
     gitignore.url = "github:hercules-ci/gitignore.nix";
     gitignore.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -36,7 +39,7 @@
           #basePackages = pkgs.haskell.packages.ghc981;
 
           packages = {
-            hashable.source = "1.4.6.0";
+            hashable.source = "1.5.0.0";
             aeson.source = "2.2.3.0";
             websockets.source = "0.13.0.0";
 

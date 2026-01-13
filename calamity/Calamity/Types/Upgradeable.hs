@@ -20,10 +20,11 @@ import Polysemy.NonDet qualified as P
  complete data, either through the cache or HTTP.
 -}
 class Upgradeable a ids | a -> ids, ids -> a where
-  -- | Upgrade a snowflake to its complete data.
-  --
-  -- If it existed in the cache then it is returned from there, otherwise we
-  -- fetch from HTTP and update the cache on success.
+  {- | Upgrade a snowflake to its complete data.
+
+  If it existed in the cache then it is returned from there, otherwise we
+  fetch from HTTP and update the cache on success.
+  -}
   upgrade :: (BotC r) => ids -> P.Sem r (Maybe a)
 
 maybeToAlt :: (Alternative f) => Maybe a -> f a

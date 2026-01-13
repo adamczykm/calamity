@@ -123,41 +123,48 @@ data EventType
   | InviteCreateEvt
   | InviteDeleteEvt
   | MessageCreateEvt
-  | -- | Fired when a cached message is updated, use 'RawMessageUpdateEvt' to see
-    -- updates of uncached messages
+  | {- | Fired when a cached message is updated, use 'RawMessageUpdateEvt' to see
+    updates of uncached messages
+    -}
     MessageUpdateEvt
   | -- | Fired when a message is updated
     RawMessageUpdateEvt
-  | -- | Fired when a cached message is deleted, use 'RawMessageDeleteEvt' to see
-    -- deletes of uncached messages.
-    --
-    -- Does not include messages deleted through bulk deletes, use
-    -- 'MessageDeleteBulkEvt' for those
+  | {- | Fired when a cached message is deleted, use 'RawMessageDeleteEvt' to see
+    deletes of uncached messages.
+
+    Does not include messages deleted through bulk deletes, use
+    'MessageDeleteBulkEvt' for those
+    -}
     MessageDeleteEvt
-  | -- | Fired when a message is deleted.
-    --
-    -- Does not include messages deleted through bulk deletes, use
-    -- 'RawMessageDeleteBulkEvt' for those
+  | {- | Fired when a message is deleted.
+
+    Does not include messages deleted through bulk deletes, use
+    'RawMessageDeleteBulkEvt' for those
+    -}
     RawMessageDeleteEvt
-  | -- | Fired when messages are bulk deleted. Only includes cached messages, use
-    -- 'RawMessageDeleteBulkEvt' to see deletes of uncached messages.
+  | {- | Fired when messages are bulk deleted. Only includes cached messages, use
+    'RawMessageDeleteBulkEvt' to see deletes of uncached messages.
+    -}
     MessageDeleteBulkEvt
   | -- | Fired when messages are bulk deleted.
     RawMessageDeleteBulkEvt
-  | -- | Fired when a reaction is added to a cached message, use
-    -- 'RawMessageReactionAddEvt' to see reactions on uncached messages.
+  | {- | Fired when a reaction is added to a cached message, use
+    'RawMessageReactionAddEvt' to see reactions on uncached messages.
+    -}
     MessageReactionAddEvt
   | -- | Fired when a reaction is added to a message.
     RawMessageReactionAddEvt
-  | -- | Fired when a reaction is removed from a cached message, use
-    -- 'RawMessageReactionRemoveEvt' to see reactions on uncached messages.
+  | {- | Fired when a reaction is removed from a cached message, use
+    'RawMessageReactionRemoveEvt' to see reactions on uncached messages.
+    -}
     MessageReactionRemoveEvt
   | -- | Fired when a reaction is removed from a message.
     RawMessageReactionRemoveEvt
-  | -- | Fired when all reactions are removed from a cached message, use
-    -- 'RawMessageReactionRemoveEvt' to see reactions on uncached messages.
-    --
-    -- The message passed will contain the removed events.
+  | {- | Fired when all reactions are removed from a cached message, use
+    'RawMessageReactionRemoveEvt' to see reactions on uncached messages.
+
+    The message passed will contain the removed events.
+    -}
     MessageReactionRemoveAllEvt
   | -- | Fired when all reactions are removed from a message.
     RawMessageReactionRemoveAllEvt
@@ -167,8 +174,9 @@ data EventType
     VoiceStateUpdateEvt
   | -- | Fired when the bot receives an interaction
     InteractionEvt
-  | -- | A custom event, @a@ is the data sent to the handler and should probably
-    -- be a newtype to disambiguate events
+  | {- | A custom event, @a@ is the data sent to the handler and should probably
+    be a newtype to disambiguate events
+    -}
     forall (a :: Type). CustomEvt a
 
 data GuildCreateStatus

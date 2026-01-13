@@ -16,7 +16,8 @@ import TextShow qualified
 import TextShow.TH (deriveTextShow)
 
 -- | A command, paremeterised over its context
-data Command (m :: Type -> Type) (c :: Type) (a :: Type) = forall p.
+data Command (m :: Type -> Type) (c :: Type) (a :: Type)
+  = forall p.
   Command
   { names :: NonEmpty T.Text
   , parent :: Maybe (Group m c a)
@@ -29,11 +30,13 @@ data Command (m :: Type -> Type) (c :: Type) (a :: Type) = forall p.
   , help :: c -> T.Text
   -- ^ A function producing the \'help\' for the command.
   , parser :: c -> m (Either CommandError p)
-  -- ^ A function that parses the context for the command, producing the input
-  -- @a@ for the command.
+  {- ^ A function that parses the context for the command, producing the input
+  @a@ for the command.
+  -}
   , callback :: (c, p) -> m (Either T.Text a)
-  -- ^ A function that given the context and the input (@p@) of the command,
-  -- performs the action of the command.
+  {- ^ A function that given the context and the input (@p@) of the command,
+  performs the action of the command.
+  -}
   }
 
 $(makeFieldLabelsNoPrefix ''Command)

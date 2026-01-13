@@ -24,8 +24,9 @@ data Check m c = MkCheck
   { name :: T.Text
   -- ^ The name of the check.
   , callback :: c -> m (Maybe T.Text)
-  -- ^ The callback for the check, returns Nothing if it passes, otherwise
-  -- returns the reason for it not passing.
+  {- ^ The callback for the check, returns Nothing if it passes, otherwise
+  returns the reason for it not passing.
+  -}
   }
 
 $(makeFieldLabelsNoPrefix ''Check)

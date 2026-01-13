@@ -128,15 +128,17 @@ data ViewInstance a = ViewInstance
   }
 
 data ViewEff ret inp sendResp m a where
-  -- | Mark the view as finished and set the return value.
-  --
-  -- This doesn't trigger the immediate exit from the code it is used in, the
-  -- view will exit before it would wait for the next event.
+  {- | Mark the view as finished and set the return value.
+
+  This doesn't trigger the immediate exit from the code it is used in, the
+  view will exit before it would wait for the next event.
+  -}
   EndView :: ret -> ViewEff ret inp sendResp m ()
-  -- | Given a view and a way to display the rendered view to discord, show the
-  -- view and start tracking the new view
-  --
-  -- This works for both message components and modals
+  {- | Given a view and a way to display the rendered view to discord, show the
+  view and start tracking the new view
+
+  This works for both message components and modals
+  -}
   ReplaceView :: View inp -> ([C.Component] -> m ()) -> ViewEff ret inp sendResp m ()
   -- | Get the result of the action that sent a value
   GetSendResponse :: ViewEff ret inp sendResp m sendResp
@@ -182,9 +184,9 @@ button' f = SingView $ \g ->
       parse' int =
         Just True
           == ( do
-                customID <- extractCustomID int
-                guardComponentType int C.ButtonType
-                pure $ customID == cid
+                 customID <- extractCustomID int
+                 guardComponentType int C.ButtonType
+                 pure $ customID == cid
              )
       parse = extractOkFromBool . parse'
    in (ViewComponent comp parse, g')
@@ -338,9 +340,10 @@ runView ::
   View inp ->
   -- | A function to send the rendered view (i.e. as a message or a modal)
   ([C.Component] -> P.Sem r sendResp) ->
-  -- | Your callback effect.
-  --
-  -- local state semantics are preserved between calls here, you can keep state around
+  {- | Your callback effect.
+
+  local state semantics are preserved between calls here, you can keep state around
+  -}
   (inp -> P.Sem (InteractionEff ': ViewEff a inp sendResp ': r) ()) ->
   P.Sem r a
 runView v sendRendered m = do
@@ -354,17 +357,19 @@ runView v sendRendered m = do
 -}
 runViewInstance ::
   (BotC r) =>
-  -- | An initial value to act as the value of @GetSendResponse@
-  --
-  -- If you just sent a message, probably pass that
+  {- | An initial value to act as the value of @GetSendResponse@
+
+  If you just sent a message, probably pass that
+  -}
   sendResp ->
   -- | The initial view to run
   ViewInstance inp ->
-  -- | Your callback effect.
-  --
-  -- In here you get access to the 'InteractionEff' and 'ViewEff' effects.
-  --
-  -- local state semantics are preserved between calls here, you can keep state around
+  {- | Your callback effect.
+
+  In here you get access to the 'InteractionEff' and 'ViewEff' effects.
+
+  local state semantics are preserved between calls here, you can keep state around
+  -}
   (inp -> P.Sem (InteractionEff ': ViewEff a inp sendResp ': r) ()) ->
   P.Sem r a
 runViewInstance initSendResp inst m = P.resourceToIOFinal $ do

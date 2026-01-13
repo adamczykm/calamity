@@ -178,9 +178,10 @@ data InteractionRequest a where
     InteractionToken ->
     InteractionCallbackMessageOptions ->
     InteractionRequest ()
-  -- | Ack an interaction and defer the response
-  --
-  -- This route triggers the 'thinking' message
+  {- | Ack an interaction and defer the response
+
+  This route triggers the 'thinking' message
+  -}
   CreateResponseDefer ::
     (HasID Interaction i) =>
     i ->
@@ -188,10 +189,11 @@ data InteractionRequest a where
     -- | Ephemeral
     Bool ->
     InteractionRequest ()
-  -- | Ack an interaction and defer the response
-  --
-  -- This route is only usable by component interactions, and doesn't trigger a
-  -- 'thinking' message
+  {- | Ack an interaction and defer the response
+
+  This route is only usable by component interactions, and doesn't trigger a
+  'thinking' message
+  -}
   CreateResponseDeferComponent ::
     (HasID Interaction i) =>
     i ->

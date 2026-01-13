@@ -26,8 +26,9 @@ class CommandContext m c a | c -> m, c -> a where
 
 -- | An effect for constructing the context for a command
 data ConstructContext msg ctx m' a' m a where
-  -- | Construct a context for a command invokation, returning Just @context@ on
-  -- success, or Nothing if a context could not be constructed
+  {- | Construct a context for a command invokation, returning Just @context@ on
+  success, or Nothing if a context could not be constructed
+  -}
   ConstructContext ::
     -- | The (prefix, command, remaining)
     (T.Text, Command m' ctx a', T.Text) ->

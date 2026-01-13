@@ -19,7 +19,7 @@ import Calamity.Client.Types
 
  ==== Registered Metrics
 
-     1. Counter: @"events_recieved" [type, shard]@
+     1. Counter: @"events_received" [type, shard]@
 
          Incremented for each event received, the @type@ parameter is the type
          of event (the name of the constructor in
@@ -28,7 +28,7 @@ import Calamity.Client.Types
 
      2. Histogram: @"cache_update"@
 
-         Tracks how long it takes to update the cache after recieving an event.
+         Tracks how long it takes to update the cache after receiving an event.
 
      3. Histogram: @"event_handle"@
 
@@ -37,7 +37,7 @@ import Calamity.Client.Types
 
  ==== Examples
 
- A simple client that prints every message recieved:
+ A simple client that prints every message received:
 
  @
  'Control.Monad.void' . 'Polysemy.runFinal' . 'Polysemy.embedToFinal' . 'Calamity.Cache.InMemory.runCacheInMemory' . 'Calamity.Metrics.Noop.runMetricsNoop' $ 'runBotIO' ('Calamity.Types.Token.BotToken' token) $ do

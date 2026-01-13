@@ -46,10 +46,11 @@ data FullContext = FullContext
   , guild :: Maybe Guild
   -- ^ If the command was sent in a guild, this will be present
   , member :: Maybe Member
-  -- ^ The member that invoked the command, if in a guild
-  --
-  -- Note: If discord sent a member with the message, this is used; otherwise
-  -- we try to fetch the member from the cache.
+  {- ^ The member that invoked the command, if in a guild
+
+  Note: If discord sent a member with the message, this is used; otherwise
+  we try to fetch the member from the cache.
+  -}
   , channel :: Channel
   -- ^ The channel the command was invoked from
   , user :: User
@@ -112,9 +113,10 @@ data LightContext = LightContext
   , user :: User
   -- ^ The user that invoked the command
   , member :: Maybe Member
-  -- ^ The member that triggered the command.
-  --
-  -- Note: Only sent if discord sent the member object with the message.
+  {- ^ The member that triggered the command.
+
+  Note: Only sent if discord sent the member object with the message.
+  -}
   , command :: Command LightContext
   -- ^ The command that was invoked
   , prefix :: T.Text

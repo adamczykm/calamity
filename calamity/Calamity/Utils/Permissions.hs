@@ -65,12 +65,13 @@ applyOverwrites c m p
 
 -- | Things that 'Member's have 'Permissions' in
 class PermissionsIn a where
-  -- | Calculate a 'Member'\'s 'Permissions' in something
-  --
-  -- If permissions could not be calculated because something couldn't be found
-  -- in the cache, this will return an empty set of permissions. Use
-  -- 'permissionsIn'' if you want to handle cases where something might not exist
-  -- in cache.
+  {- | Calculate a 'Member'\'s 'Permissions' in something
+
+  If permissions could not be calculated because something couldn't be found
+  in the cache, this will return an empty set of permissions. Use
+  'permissionsIn'' if you want to handle cases where something might not exist
+  in cache.
+  -}
   permissionsIn :: a -> Member -> Permissions
 
 -- | A 'Member'\'s 'Permissions' in a channel are their roles and overwrites

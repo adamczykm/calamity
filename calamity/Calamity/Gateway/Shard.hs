@@ -264,7 +264,7 @@ connectThroughHttpProxy proxyHost proxyPort targetHost targetPort clientParams =
           { NT.backendFlush = pure ()
           , NT.backendClose = NC.connectionClose proxyConn
           , NT.backendSend = NC.connectionPut proxyConn
-          , NT.backendRecv = NC.connectionGet proxyConn
+          , NT.backendRecv = connectionGetExactly proxyConn
           }
   tlsCtx <- NT.contextNew backend clientParams
   NT.handshake tlsCtx
@@ -288,6 +288,22 @@ skipProxyHeaders maxHeaders conn = go maxHeaders
       line <- NC.connectionGetLine 1024 conn
       unless (BS.null line || line == "\r" || line == "\r\n") $
         go (n - 1)
+
+{- | Reads exactly n bytes from a connection, looping until all bytes are received.
+
+This is necessary for TLS backends because NC.connectionGet can return fewer
+bytes than requested (partial reads). The TLS library expects backendRecv to
+keep reading until the full amount is available or EOF is reached.
+-}
+connectionGetExactly :: NC.Connection -> Int -> IO BS.ByteString
+connectionGetExactly conn n = go n []
+  where
+    go 0 acc = pure $ BS.concat (reverse acc)
+    go remaining acc = do
+      chunk <- NC.connectionGet conn remaining
+      if BS.null chunk
+        then pure $ BS.concat (reverse acc)  -- EOF reached
+        else go (remaining - BS.length chunk) (chunk : acc)
 
 newShardState :: Shard -> Manager -> ShardState
 newShardState shard mgr = ShardState shard Nothing Nothing False Nothing Nothing Nothing mgr

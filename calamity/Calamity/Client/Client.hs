@@ -7,6 +7,9 @@ module Calamity.Client.Client (
   runBotIO,
   runBotIO',
   runBotIO'',
+  runBotIOWithManager,
+  runBotIOWithManager',
+  runBotIOWithManager'',
   stopBot,
   sendPresence,
   events,
@@ -23,6 +26,7 @@ import Calamity.Client.Types
 import Calamity.Gateway.DispatchEvents
 import Calamity.Gateway.Intents
 import Calamity.Gateway.Types
+import Calamity.HTTP.Internal.Config (HttpConfigEff, interpretHttpConfigFromClient)
 import Calamity.HTTP.Internal.Ratelimit
 import Calamity.Internal.ConstructorName
 import Calamity.Internal.RunIntoIO
@@ -56,6 +60,8 @@ import Data.Time.Clock.POSIX
 import Df1 qualified
 import Di.Core qualified as DC
 import DiPolysemy qualified as Di
+import Network.HTTP.Client (Manager)
+import Network.HTTP.Client.TLS (newTlsManager)
 import Optics
 import Polysemy qualified as P
 import Polysemy.Async qualified as P
@@ -74,8 +80,8 @@ timeA m = do
   let duration = fromRational . toRational $ end - start
   pure (duration, res)
 
-newClient :: Token -> Maybe (DC.Di Df1.Level Df1.Path Df1.Message) -> IO Client
-newClient token initialDi = do
+newClientWithManager :: Token -> Maybe (DC.Di Df1.Level Df1.Path Df1.Message) -> Manager -> IO Client
+newClientWithManager token initialDi mgr = do
   shards' <- newTVarIO []
   numShards' <- newEmptyMVar
   rlState' <- newRateLimitState
@@ -92,17 +98,109 @@ newClient token initialDi = do
       outc
       ehidCounter
       initialDi
+      mgr
+
+newClient :: Token -> Maybe (DC.Di Df1.Level Df1.Path Df1.Message) -> IO Client
+newClient token initialDi = do
+  mgr <- newTlsManager
+  newClientWithManager token initialDi mgr
 
 -- | Create a bot, run your setup action, and then loop until the bot closes.
 runBotIO ::
   forall r a.
   (P.Members '[P.Embed IO, P.Final IO, CacheEff, MetricEff, LogEff] r) =>
+  Token -> Intents -> P.Sem (SetupEff r) a -> P.Sem r (Maybe StartupError)
+runBotIO token intents = runBotIO' token intents Nothing
+
+{- | Create a bot, run your setup action, and then loop until the bot closes.
+
+  This version allows you to specify the initial status
+-}
+runBotIO' ::
+  forall r a.
+  (P.Members '[P.Embed IO, P.Final IO, CacheEff, MetricEff, LogEff] r) =>
   Token ->
-  -- | The intents the bot should use
+  Intents ->
+  Maybe StatusUpdateData ->
+  P.Sem (SetupEff r) a ->
+  P.Sem r (Maybe StartupError)
+runBotIO' token intents status setup = do
+  mgr <- P.embed newTlsManager
+  runBotIOWithManager' mgr token intents status setup
+
+-- NEW: manager-aware variants
+runBotIOWithManager ::
+  forall r a.
+  (P.Members '[P.Embed IO, P.Final IO, CacheEff, MetricEff, LogEff] r) =>
+  Manager ->
+  Token ->
   Intents ->
   P.Sem (SetupEff r) a ->
   P.Sem r (Maybe StartupError)
-runBotIO token intents = runBotIO' token intents Nothing
+runBotIOWithManager mgr token intents =
+  runBotIOWithManager' mgr token intents Nothing
+runBotIOWithManager' ::
+  forall r a.
+  (P.Members '[P.Embed IO, P.Final IO, CacheEff, MetricEff, LogEff] r) =>
+  Manager ->
+  Token ->
+  Intents ->
+  Maybe StatusUpdateData ->
+  P.Sem (SetupEff r) a ->
+  P.Sem r (Maybe StartupError)
+runBotIOWithManager' mgr token intents status setup = do
+  initialDi <- Di.fetch
+  client <- P.embed $ newClientWithManager token initialDi mgr
+  handlers <- P.embed $ newTVarIO def
+
+  P.asyncToIOFinal
+    . P.runAtomicStateTVar handlers
+    . P.runReader client
+    . interpretHttpConfigFromClient
+    . interpretTokenViaClient
+    . interpretRatelimitViaClient
+    . Di.push "calamity"
+    $ do
+      void $ Di.push "calamity-setup" setup
+      r <- shardBot status intents
+      case r of
+        Left e -> pure (Just e)
+        Right _ -> do
+          Di.push "calamity-loop" clientLoop
+          Di.push "calamity-stop" finishUp
+          pure Nothing
+runBotIOWithManager'' ::
+  forall r a.
+  ( P.Members
+      '[ LogEff
+       , MetricEff
+       , CacheEff
+       , P.Reader Client
+       , P.AtomicState EventHandlers
+       , P.Embed IO
+       , P.Final IO
+       , P.Async
+       ]
+      r
+  ) =>
+  Manager ->
+  Token ->
+  Intents ->
+  Maybe StatusUpdateData ->
+  P.Sem (RatelimitEff ': TokenEff ': HttpConfigEff ': P.Reader Client ': r) a ->
+  P.Sem r (Maybe StartupError)
+runBotIOWithManager'' mgr token intents status setup = do
+  initialDi <- Di.fetch
+  client <- P.embed $ newClientWithManager token initialDi mgr
+  P.runReader client . interpretHttpConfigFromClient . interpretTokenViaClient . interpretRatelimitViaClient . Di.push "calamity" $ do
+    void $ Di.push "calamity-setup" setup
+    r <- shardBot status intents
+    case r of
+      Left e -> pure (Just e)
+      Right _ -> do
+        Di.push "calamity-loop" clientLoop
+        Di.push "calamity-stop" finishUp
+        pure Nothing
 
 resetDi :: (BotC r) => P.Sem r a -> P.Sem r a
 resetDi m = do
@@ -122,34 +220,6 @@ interpretTokenViaClient =
     ( \case
         GetBotToken -> P.asks (^. #token)
     )
-
-{- | Create a bot, run your setup action, and then loop until the bot closes.
-
- This version allows you to specify the initial status
--}
-runBotIO' ::
-  forall r a.
-  (P.Members '[P.Embed IO, P.Final IO, CacheEff, MetricEff, LogEff] r) =>
-  Token ->
-  -- | The intents the bot should use
-  Intents ->
-  -- | The initial status to send to the gateway
-  Maybe StatusUpdateData ->
-  P.Sem (SetupEff r) a ->
-  P.Sem r (Maybe StartupError)
-runBotIO' token intents status setup = do
-  initialDi <- Di.fetch
-  client <- P.embed $ newClient token initialDi
-  handlers <- P.embed $ newTVarIO def
-  P.asyncToIOFinal . P.runAtomicStateTVar handlers . P.runReader client . interpretTokenViaClient . interpretRatelimitViaClient . Di.push "calamity" $ do
-    void $ Di.push "calamity-setup" setup
-    r <- shardBot status intents
-    case r of
-      Left e -> pure (Just e)
-      Right _ -> do
-        Di.push "calamity-loop" clientLoop
-        Di.push "calamity-stop" finishUp
-        pure Nothing
 
 {- | Create a bot, run your setup action, and then loop until the bot closes.
 
@@ -175,12 +245,12 @@ runBotIO'' ::
   Intents ->
   -- | The initial status to send to the gateway
   Maybe StatusUpdateData ->
-  P.Sem (RatelimitEff ': TokenEff ': P.Reader Client ': r) a ->
+  P.Sem (RatelimitEff ': TokenEff ': HttpConfigEff ': P.Reader Client ': r) a ->
   P.Sem r (Maybe StartupError)
 runBotIO'' token intents status setup = do
   initialDi <- Di.fetch
   client <- P.embed $ newClient token initialDi
-  P.runReader client . interpretTokenViaClient . interpretRatelimitViaClient . Di.push "calamity" $ do
+  P.runReader client . interpretHttpConfigFromClient . interpretTokenViaClient . interpretRatelimitViaClient . Di.push "calamity" $ do
     void $ Di.push "calamity-setup" setup
     r <- shardBot status intents
     case r of

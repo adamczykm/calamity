@@ -9,6 +9,7 @@ module Calamity.Client.Types (
   GuildDeleteStatus (..),
   EHType,
   BotC,
+  BotC',
   SetupEff,
   ReactConstraints,
   EventHandlers (..),
@@ -21,6 +22,7 @@ module Calamity.Client.Types (
 import Calamity.Cache.Eff
 import Calamity.Gateway.DispatchEvents (CalamityEvent (..), InviteCreateData, InviteDeleteData, ReactionEvtData, ReadyData)
 import Calamity.Gateway.Types (ControlMessage)
+import Calamity.HTTP.Internal.Config (HttpConfigEff)
 import Calamity.HTTP.Internal.Ratelimit
 import Calamity.HTTP.Internal.Types
 import Calamity.Metrics.Eff
@@ -51,6 +53,7 @@ import Data.Void (Void)
 import Df1 qualified
 import Di.Core qualified as DC
 import GHC.Exts (fromList)
+import Network.HTTP.Client (Manager)
 import Optics.TH
 import Polysemy qualified as P
 import Polysemy.Async qualified as P
@@ -66,6 +69,7 @@ data Client = Client
   , eventsOut :: OutChan CalamityEvent
   , ehidCounter :: IORef Integer
   , initialDi :: Maybe (DC.Di Df1.Level Df1.Path Df1.Message)
+  , httpManager :: Manager
   }
 
 -- | Constraints required by the bot client
@@ -85,8 +89,26 @@ type BotC r =
       r
   )
 
+-- | Extended bot constraints including HTTP config effect
+type BotC' r =
+  ( P.Members
+      '[ LogEff
+       , MetricEff
+       , CacheEff
+       , RatelimitEff
+       , TokenEff
+       , HttpConfigEff
+       , P.Reader Client
+       , P.AtomicState EventHandlers
+       , P.Embed IO
+       , P.Final IO
+       , P.Async
+       ]
+      r
+  )
+
 -- | A concrete effect stack used inside the bot
-type SetupEff r = (RatelimitEff ': TokenEff ': P.Reader Client ': P.AtomicState EventHandlers ': P.Async ': r)
+type SetupEff r = (RatelimitEff ': TokenEff ': HttpConfigEff ': P.Reader Client ': P.AtomicState EventHandlers ': P.Async ': r)
 
 {- | Some constraints that 'Calamity.Client.Client.react' needs to work. Don't
  worry about these since they are satisfied for any type @s@ can be

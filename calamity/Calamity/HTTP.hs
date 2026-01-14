@@ -14,6 +14,8 @@ module Calamity.HTTP (
   module Calamity.HTTP.Internal.Types,
   RatelimitEff (..),
   TokenEff (..),
+  HttpConfigEff (..),
+  interpretHttpConfigDefault,
 
   -- * HTTP
   -- $httpDocs
@@ -24,6 +26,7 @@ import Calamity.HTTP.Channel
 import Calamity.HTTP.Emoji
 import Calamity.HTTP.Guild
 import Calamity.HTTP.Interaction
+import Calamity.HTTP.Internal.Config (HttpConfigEff (..), interpretHttpConfigDefault)
 import Calamity.HTTP.Internal.Ratelimit (RatelimitEff (..))
 import Calamity.HTTP.Internal.Request (invoke)
 import Calamity.HTTP.Internal.Types (RestError)

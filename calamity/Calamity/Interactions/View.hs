@@ -21,8 +21,9 @@ module Calamity.Interactions.View (
 ) where
 
 import Calamity.Client.Client (react)
-import Calamity.Client.Types (BotC, EventType (InteractionEvt))
+import Calamity.Client.Types (BotC, BotC', Client, EventType (InteractionEvt))
 import Calamity.HTTP.Channel (ChannelRequest (DeleteMessage))
+import Calamity.HTTP.Internal.Config (HttpConfigEff, interpretHttpConfigFromClient)
 import Calamity.HTTP.Internal.Ratelimit (RatelimitEff)
 import Calamity.HTTP.Internal.Request (invoke)
 import Calamity.Interactions.Eff (InteractionEff (..))
@@ -44,6 +45,7 @@ import Data.Text (Text)
 import GHC.TypeLits qualified as E
 import Optics
 import Polysemy qualified as P
+import Polysemy.Reader qualified as P
 import Polysemy.Resource qualified as P
 import Polysemy.State qualified as P
 import System.Random
@@ -317,7 +319,7 @@ instantiateView g v =
        in (ViewInstance inv (ra <> rb), g'')
 
 -- | Delete the initial message containing components
-deleteInitialMsg :: (BotC r, P.Member (ViewEff a inp (Either e Message)) r) => P.Sem r ()
+deleteInitialMsg :: (BotC' r, P.Member (ViewEff a inp (Either e Message)) r) => P.Sem r ()
 deleteInitialMsg = do
   ini <- getSendResponse
   case ini of
@@ -384,14 +386,17 @@ runViewInstance initSendResp inst m = P.resourceToIOFinal $ do
   where
     interpretInteraction ::
       forall r.
+      (P.Member (P.Reader Client) r) =>
       Interaction ->
       P.Sem (InteractionEff ': r) () ->
       P.Sem r ()
     interpretInteraction int =
-      P.interpret
-        ( \case
-            GetInteraction -> pure int
-        )
+      interpretHttpConfigFromClient
+        . P.interpret
+          ( \case
+              GetInteraction -> pure int
+          )
+        . P.raiseUnder @HttpConfigEff
 
     interpretView ::
       forall r ret inp sendResp.
@@ -411,7 +416,7 @@ runViewInstance initSendResp inst m = P.resourceToIOFinal $ do
 
     innerLoop ::
       forall r ret inp sendResp.
-      (P.Members '[RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r) =>
+      (P.Members '[P.Reader Client, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r) =>
       sendResp ->
       ViewInstance inp ->
       STM.TQueue Interaction ->

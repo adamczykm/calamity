@@ -15,6 +15,7 @@ module Calamity.Interactions.Utils (
 ) where
 
 import Calamity.HTTP
+import Calamity.HTTP.Internal.Config (HttpConfigEff)
 import Calamity.Interactions.Eff (InteractionEff, getApplicationID, getInteractionID, getInteractionToken, getInteractionUser)
 import Calamity.Metrics.Eff (MetricEff)
 import Calamity.Types.LogEff (LogEff)
@@ -54,7 +55,7 @@ userLocalState s =
 -- | Respond to an interaction with a globally visible message
 respond ::
   forall t r.
-  (P.Members '[InteractionEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r, ToMessage t) =>
+  (P.Members '[InteractionEff, HttpConfigEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r, ToMessage t) =>
   t ->
   P.Sem r (Either RestError ())
 respond (runToMessage -> msg) =
@@ -77,7 +78,7 @@ respond (runToMessage -> msg) =
 -- | Respond to an interaction with an ephemeral message
 respondEphemeral ::
   forall t r.
-  (P.Members '[InteractionEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r, ToMessage t) =>
+  (P.Members '[InteractionEff, HttpConfigEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r, ToMessage t) =>
   t ->
   P.Sem r (Either RestError ())
 respondEphemeral (runToMessage -> msg) =
@@ -100,7 +101,7 @@ respondEphemeral (runToMessage -> msg) =
 -- | Respond to an interaction by editing the message that triggered the interaction
 edit ::
   forall t r.
-  (P.Members '[InteractionEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r, ToMessage t) =>
+  (P.Members '[InteractionEff, HttpConfigEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r, ToMessage t) =>
   t ->
   P.Sem r (Either RestError ())
 edit (runToMessage -> msg) =
@@ -123,7 +124,7 @@ edit (runToMessage -> msg) =
 -- | Create a follow up response to an interaction
 followUp ::
   forall t r.
-  (P.Members '[InteractionEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r, ToMessage t) =>
+  (P.Members '[InteractionEff, HttpConfigEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r, ToMessage t) =>
   t ->
   P.Sem r (Either RestError ())
 followUp (runToMessage -> msg) =
@@ -146,7 +147,7 @@ followUp (runToMessage -> msg) =
 -- | Create an ephemeral follow up response to an interaction
 followUpEphemeral ::
   forall t r.
-  (P.Members '[InteractionEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r, ToMessage t) =>
+  (P.Members '[InteractionEff, HttpConfigEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r, ToMessage t) =>
   t ->
   P.Sem r (Either RestError ())
 followUpEphemeral (runToMessage -> msg) =
@@ -167,7 +168,7 @@ followUpEphemeral (runToMessage -> msg) =
         invoke $ CreateFollowupMessage applicationID interactionToken opts
 
 -- | Defer an interaction and show a loading state, use @followUp@ later on
-defer :: (P.Members '[InteractionEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r) => P.Sem r (Either RestError ())
+defer :: (P.Members '[InteractionEff, HttpConfigEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r) => P.Sem r (Either RestError ())
 defer = do
   interactionID <- getInteractionID
   interactionToken <- getInteractionToken
@@ -176,14 +177,14 @@ defer = do
 {- | Defer an interaction and show an ephemeral loading state, use @followUp@
  later on
 -}
-deferEphemeral :: (P.Members '[InteractionEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r) => P.Sem r (Either RestError ())
+deferEphemeral :: (P.Members '[InteractionEff, HttpConfigEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r) => P.Sem r (Either RestError ())
 deferEphemeral = do
   interactionID <- getInteractionID
   interactionToken <- getInteractionToken
   invoke $ CreateResponseDefer interactionID interactionToken True
 
 -- | Defer operation
-deferComponent :: (P.Members '[InteractionEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r) => P.Sem r (Either RestError ())
+deferComponent :: (P.Members '[InteractionEff, HttpConfigEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r) => P.Sem r (Either RestError ())
 deferComponent = do
   interactionID <- getInteractionID
   interactionToken <- getInteractionToken
@@ -197,7 +198,7 @@ fixupActionRow x = ActionRow' [x]
 
  You should probably use this with 'Calamity.Interaction.View.runView'
 -}
-pushModal :: (P.Members '[InteractionEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r) => Text -> [Component] -> P.Sem r (Either RestError ())
+pushModal :: (P.Members '[InteractionEff, HttpConfigEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r) => Text -> [Component] -> P.Sem r (Either RestError ())
 pushModal title c = do
   -- we don't actually use the custom id of the modal. the custom ids of the
   -- sub-components are enough to disambiguate

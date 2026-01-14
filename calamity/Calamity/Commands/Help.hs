@@ -4,7 +4,7 @@ module Calamity.Commands.Help (
   helpCommand,
 ) where
 
-import Calamity.Client.Types (BotC)
+import Calamity.Client.Types (BotC, BotC')
 import Calamity.Commands.Types
 import Calamity.Types.Tellable
 import CalamityCommands.Help qualified as CC
@@ -15,7 +15,7 @@ import Polysemy qualified as P
  construct a help command that will provide help for all the commands and
  groups in the passed 'CommandHandler'.
 -}
-helpCommand' :: (Tellable c, BotC r, CommandContext c) => CommandHandler c -> Maybe (Group c) -> [Check c] -> P.Sem r (Command c)
+helpCommand' :: (Tellable c, BotC' r, CommandContext c) => CommandHandler c -> Maybe (Group c) -> [Check c] -> P.Sem r (Command c)
 helpCommand' handler parent checks = CC.helpCommand' handler parent checks (\a b -> void $ tell a b)
 
 {- | Create and register the default help command for all the commands registered
@@ -66,5 +66,5 @@ helpCommand' handler parent checks = CC.helpCommand' handler parent checks (\a b
  Add a new prefix
  @
 -}
-helpCommand :: (Tellable c, BotC r, CommandContext c) => P.Sem (DSLState c r) (Command c)
+helpCommand :: (Tellable c, BotC' r, CommandContext c) => P.Sem (DSLState c r) (Command c)
 helpCommand = CC.helpCommand (\a b -> void $ tell a b)

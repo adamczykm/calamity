@@ -1,5 +1,54 @@
 # Changelog for Calamity
 
+## 0.13.0.0
+
+### Breaking Changes
+
++ Added `HttpConfigEff` effect for HTTP configuration management
+  - All HTTP operations (via `invoke`) now require `HttpConfigEff` in their effect constraints
+  - Bot runtime (`runBotIO*`) automatically interprets this effect using `Client.httpManager`
+  - For custom effect stacks outside the bot runtime, use `interpretHttpConfigDefault`
+
++ Updated type constraints for bot effects
+  - Introduced `BotC'` type alias that includes `HttpConfigEff`
+  - Internal modules using HTTP now require `BotC'` instead of `BotC`:
+    - `Calamity.Types.Tellable`: `tell`, `reply`, `getChannel`, `messageUser`
+    - `Calamity.Types.Upgradeable`: `upgrade`
+    - `Calamity.Utils.Permissions`: `permissionsIn'`
+    - `Calamity.Commands.Help`: `helpCommand'`, `helpCommand`
+    - `Calamity.Client.ShardManager`: `shardBot`
+    - `Calamity.Interactions.View`: `deleteInitialMsg`
+  - Interaction utilities now require `HttpConfigEff`:
+    - `respond`, `respondEphemeral`, `edit`, `followUp`, `followUpEphemeral`
+    - `defer`, `deferEphemeral`, `deferComponent`, `pushModal`
+
+### Features
+
++ HTTP proxy support via environment variables
+  - The bot now respects `HTTP_PROXY` and `HTTPS_PROXY` environment variables
+  - Custom TLS settings from `Client.httpManager` are properly propagated to all HTTP requests
+
+### Exports
+
++ New exports from `Calamity.HTTP`:
+  - `HttpConfigEff(..)` - Effect for HTTP configuration
+  - `interpretHttpConfigDefault` - Interpreter for standalone HTTP operations
+
+### Migration Guide
+
+Most users won't need to change anything - the bot runtime handles `HttpConfigEff` automatically.
+
+If you have custom effect stacks that use `invoke` or interaction utilities:
+```haskell
+-- Add HttpConfigEff to your effect list
+myCustomStack :: P.Sem (HttpConfigEff ': OtherEffects) a -> ...
+
+-- Or interpret it at the boundary
+interpretHttpConfigDefault $ do
+  result <- invoke someRequest
+  ...
+```
+
 ## 0.12.1.0
 
 + Fixed build with Aeson 2.2+ @L0neGamer

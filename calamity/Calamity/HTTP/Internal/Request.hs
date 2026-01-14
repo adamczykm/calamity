@@ -4,6 +4,8 @@
 module Calamity.HTTP.Internal.Request (
   Request (..),
   invoke,
+  invokeWithHttpConfig,
+  invokeWithManager,
   getWith,
   postWith',
   postWithP',
@@ -18,6 +20,8 @@ module Calamity.HTTP.Internal.Request (
   (=:?),
 ) where
 
+import Calamity.HTTP.Internal.Config (HttpConfigEff, baseReqConfig)
+import Calamity.HTTP.Internal.Config qualified as HttpCfg
 import Calamity.HTTP.Internal.Ratelimit
 import Calamity.HTTP.Internal.Route
 import Calamity.HTTP.Internal.Types
@@ -32,6 +36,7 @@ import Data.ByteString.Lazy qualified as LB
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TS
 import DiPolysemy hiding (debug, error, info)
+import Network.HTTP.Client (Manager)
 import Network.HTTP.Req
 import Optics
 import Polysemy qualified as P
@@ -65,14 +70,28 @@ class Request a where
   modifyResponse :: a -> Value -> Value
   modifyResponse _ = id
 
+-- | Main request executor - gets HTTP config from effect
 invoke ::
-  ( P.Members '[RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r
+  ( P.Members '[HttpConfigEff, RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r
   , Request a
   , ReadResponse (Calamity.HTTP.Internal.Request.Result a)
   ) =>
   a ->
   P.Sem r (Either RestError (Calamity.HTTP.Internal.Request.Result a))
 invoke a = do
+  cfg <- HttpCfg.getHttpConfig
+  invokeWithHttpConfig cfg a
+
+-- NEW: configurable executor (no API break, just additive)
+invokeWithHttpConfig ::
+  ( P.Members '[RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r
+  , Request a
+  , ReadResponse (Calamity.HTTP.Internal.Request.Result a)
+  ) =>
+  HttpConfig ->
+  a ->
+  P.Sem r (Either RestError (Calamity.HTTP.Internal.Request.Result a))
+invokeWithHttpConfig cfg a = do
   rlState' <- getRatelimitState
   token' <- getBotToken
 
@@ -84,7 +103,7 @@ invoke a = do
   void $ addCounter 1 totalRequests
 
   let r = action a (route' ^. #path) (requestOptions token')
-      act = runReq reqConfig r
+      act = runReq cfg r
 
   resp <- push "calamity" . attr "route" (renderUrl $ route' ^. #path) $ doRequest rlState' route' act
 
@@ -94,11 +113,17 @@ invoke a = do
     s <- extractRight resp
     throwIfLeft $ processResp s (modifyResponse a)
 
-reqConfig :: HttpConfig
-reqConfig =
-  defaultHttpConfig
-    { httpConfigCheckResponse = \_ _ _ -> Nothing
-    }
+-- NEW: manager-based executor (still additive)
+invokeWithManager ::
+  ( P.Members '[RatelimitEff, TokenEff, LogEff, MetricEff, P.Embed IO] r
+  , Request a
+  , ReadResponse (Calamity.HTTP.Internal.Request.Result a)
+  ) =>
+  Manager ->
+  a ->
+  P.Sem r (Either RestError (Calamity.HTTP.Internal.Request.Result a))
+invokeWithManager mgr =
+  invokeWithHttpConfig (baseReqConfig {httpConfigAltManager = Just mgr})
 
 defaultRequestOptions :: Option 'Https
 defaultRequestOptions =

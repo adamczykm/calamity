@@ -33,6 +33,7 @@ shardBot initialStatus intents = (mapLeft StartupError <$>) . P.runFail $ do
 
   token <- P.asks Calamity.Client.Types.token
   inc <- P.asks (^. #eventsIn)
+  mgr <- P.asks (^. #httpManager)
 
   Right gateway <- invoke GetGatewayBot
 
@@ -43,6 +44,6 @@ shardBot initialStatus intents = (mapLeft StartupError <$>) . P.runFail $ do
   info . T.pack $ "Number of shards: " <> show numShards'
 
   shards <- for [0 .. numShards' - 1] $ \id ->
-    newShard host id numShards' token initialStatus intents inc
+    newShard mgr host id numShards' token initialStatus intents inc
 
   P.embed . atomically $ writeTVar shardsVar shards

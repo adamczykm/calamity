@@ -75,9 +75,10 @@ import Control.Concurrent.STM.TBMQueue (
 import Control.Exception (
   Exception (fromException),
   SomeException,
+  throwIO,
  )
 import Control.Exception.Safe qualified as Ex
-import Control.Monad (void, when)
+import Control.Monad (unless, void, when)
 import Control.Monad.State.Lazy (runState)
 import Data.Aeson qualified as A
 import Data.ByteString.Lazy qualified as LBS
@@ -85,17 +86,16 @@ import Data.Default.Class (def)
 import Data.IORef (newIORef)
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as T
+import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as BS8
 import DiPolysemy (attr, push)
 import Network.Connection qualified as NC
+import Network.HTTP.Client (Manager, Proxy (..))
+import Network.HTTP.Client.Internal (connectionClose, connectionRead, connectionWrite, makeConnection)
+import Network.HTTP.Client.Internal qualified as HTTP.Internal
 import Network.TLS qualified as NT
 import Network.TLS.Extra qualified as NT
-import Network.WebSockets (
-  Connection,
-  ConnectionException (..),
-  receiveData,
-  sendCloseCode,
-  sendTextData,
- )
+import Network.WebSockets (ConnectionException (..), receiveData, sendCloseCode, sendTextData)
 import Network.WebSockets qualified as NW
 import Network.WebSockets.Stream qualified as NW
 import Optics
@@ -110,17 +110,23 @@ import System.X509 qualified as X509
 import TextShow (showt)
 import Prelude hiding (error)
 
+{- | Establishes a WebSocket connection, respecting HTTP proxy settings from the Manager.
+
+This function automatically handles:
+- Direct connections when no proxy is configured
+- HTTP CONNECT tunneling through HTTP proxies (configured via HTTP_PROXY/HTTPS_PROXY environment variables)
+- TLS encryption after proxy tunneling
+-}
 runWebsocket ::
   (P.Members '[LogEff, P.Final IO, P.Embed IO] r) =>
+  Manager ->
   T.Text ->
   T.Text ->
-  (Connection -> P.Sem r a) ->
+  (NW.Connection -> P.Sem r a) ->
   P.Sem r (Maybe a)
-runWebsocket host path ma = do
+runWebsocket mgr host path ma = do
   inner <- bindSemToIO ma
 
-  -- We have to do this all ourself I think?
-  -- TODO: see if this isn't needed
   let logExc e = debug $ "runWebsocket raised with " <> (T.pack . show $ e)
   logExc' <- bindSemToIO logExc
   let handler e = do
@@ -128,7 +134,6 @@ runWebsocket host path ma = do
         pure Nothing
 
   P.embed . Ex.handleAny handler $ do
-    ctx <- NC.initConnectionContext
     certStore <- X509.getSystemCertificateStore
     let clientParams =
           (NT.defaultParamsClient (T.unpack host) "443")
@@ -138,26 +143,159 @@ runWebsocket host path ma = do
                   { NT.sharedCAStore = certStore
                   }
             }
-    let tlsSettings = NC.TLSSettings clientParams
-        connParams = NC.ConnectionParams (T.unpack host) 443 (Just tlsSettings) Nothing
+
+    -- Use Manager to create connection - automatically handles proxy
+    rawConn <- openTlsConnectionThroughManager mgr (T.unpack host) 443 clientParams
+
+    -- Wrap raw connection in WebSocket stream
+    stream <-
+      NW.makeStream
+        (Just <$> connectionRead rawConn)
+        (maybe (pure ()) (connectionWrite rawConn . LBS.toStrict))
 
     Ex.bracket
-      (NC.connectTo ctx connParams)
-      NC.connectionClose
-      ( \conn -> do
-          stream <-
-            NW.makeStream
-              (Just <$> NC.connectionGetChunk conn)
-              (maybe (pure ()) (NC.connectionPut conn . LBS.toStrict))
-          NW.runClientWithStream stream (T.unpack host) (T.unpack path) NW.defaultConnectionOptions [] inner
-      )
+      (pure rawConn)
+      connectionClose
+      (const $ NW.runClientWithStream stream (T.unpack host) (T.unpack path) NW.defaultConnectionOptions [] inner)
 
-newShardState :: Shard -> ShardState
-newShardState shard = ShardState shard Nothing Nothing False Nothing Nothing Nothing
+{- | Opens a TLS connection using the Manager's proxy settings.
+
+Extracts proxy configuration from the Manager and either:
+- Connects directly if no proxy is configured
+- Tunnels through HTTP proxy using HTTP CONNECT method
+-}
+openTlsConnectionThroughManager ::
+  Manager ->
+  String ->
+  Int ->
+  NT.ClientParams ->
+  IO HTTP.Internal.Connection
+openTlsConnectionThroughManager mgr host port clientParams = do
+  -- Extract proxy settings from Manager
+  -- Create a dummy request to get proxy settings from Manager
+  let dummyReq =
+        HTTP.Internal.defaultRequest
+          { HTTP.Internal.host = BS8.pack host
+          , HTTP.Internal.port = port
+          , HTTP.Internal.secure = True
+          }
+  -- Apply Manager's proxy override to the request
+  let modifiedReq = HTTP.Internal.mSetProxy mgr dummyReq
+      maybeProxySettings = HTTP.Internal.proxy modifiedReq
+
+  case maybeProxySettings of
+    Just (Proxy proxyHost proxyPort) -> do
+      -- Connect through HTTP proxy using HTTP CONNECT
+      connectThroughHttpProxy proxyHost proxyPort host port clientParams
+    Nothing -> do
+      -- Direct connection with TLS
+      ctx <- NC.initConnectionContext
+      let tlsSettings = NC.TLSSettings clientParams
+          connParams = NC.ConnectionParams host (fromIntegral port) (Just tlsSettings) Nothing
+
+      conn <- NC.connectTo ctx connParams
+
+      -- Convert NC.Connection to http-client's Connection
+      makeConnection
+        (NC.connectionGetChunk conn)
+        (NC.connectionPut conn)
+        (NC.connectionClose conn)
+
+{- | Establishes a connection through an HTTP proxy using the CONNECT method.
+
+Steps:
+1. Connects to the proxy server (plain TCP)
+2. Sends HTTP CONNECT request for the target host:port
+3. Waits for 200 OK response from proxy
+4. Upgrades the connection to TLS
+5. Returns a Connection ready for use
+-}
+connectThroughHttpProxy ::
+  BS.ByteString ->
+  Int ->
+  String ->
+  Int ->
+  NT.ClientParams ->
+  IO HTTP.Internal.Connection
+connectThroughHttpProxy proxyHost proxyPort targetHost targetPort clientParams = do
+  ctx <- NC.initConnectionContext
+
+  -- 1. Connect to proxy (plain TCP)
+  let proxyParams =
+        NC.ConnectionParams
+          { NC.connectionHostname = BS8.unpack proxyHost
+          , NC.connectionPort = fromIntegral proxyPort
+          , NC.connectionUseSecure = Nothing
+          , NC.connectionUseSocks = Nothing
+          }
+
+  proxyConn <- NC.connectTo ctx proxyParams
+
+  -- 2. Send HTTP CONNECT request
+  let connectRequest =
+        "CONNECT "
+          <> targetHost
+          <> ":"
+          <> show targetPort
+          <> " HTTP/1.1\r\n"
+          <> "Host: "
+          <> targetHost
+          <> ":"
+          <> show targetPort
+          <> "\r\n"
+          <> "\r\n"
+  NC.connectionPut proxyConn (BS8.pack connectRequest)
+
+  -- 3. Read proxy response
+  responseLine <- NC.connectionGetLine 1024 proxyConn
+  unless (BS.isPrefixOf "HTTP/1.1 200" responseLine || BS.isPrefixOf "HTTP/1.0 200" responseLine) $
+    throwIO $
+      userError $
+        "Proxy CONNECT to " <> targetHost <> ":" <> show targetPort <> " failed. "
+          <> "Proxy response: "
+          <> BS8.unpack responseLine
+
+  -- 4. Skip remaining headers (until empty line)
+  skipProxyHeaders 100 proxyConn
+
+  -- 5. Upgrade connection to TLS by creating a Backend from NC.Connection
+  let backend =
+        NT.Backend
+          { NT.backendFlush = pure ()
+          , NT.backendClose = NC.connectionClose proxyConn
+          , NT.backendSend = NC.connectionPut proxyConn
+          , NT.backendRecv = NC.connectionGet proxyConn
+          }
+  tlsCtx <- NT.contextNew backend clientParams
+  NT.handshake tlsCtx
+
+  -- 6. Convert to http-client Connection
+  makeConnection
+    (NT.recvData tlsCtx)
+    (NT.sendData tlsCtx . LBS.fromStrict)
+    (NT.bye tlsCtx >> NC.connectionClose proxyConn)
+
+{- | Skips HTTP headers by reading lines until an empty line is encountered.
+
+HTTP headers are terminated by an empty line (just CRLF).
+Takes a maximum number of headers to skip as a safety limit.
+-}
+skipProxyHeaders :: Int -> NC.Connection -> IO ()
+skipProxyHeaders maxHeaders conn = go maxHeaders
+  where
+    go 0 = throwIO $ userError "Too many proxy headers (limit exceeded)"
+    go n = do
+      line <- NC.connectionGetLine 1024 conn
+      unless (BS.null line || line == "\r" || line == "\r\n") $
+        go (n - 1)
+
+newShardState :: Shard -> Manager -> ShardState
+newShardState shard mgr = ShardState shard Nothing Nothing False Nothing Nothing Nothing mgr
 
 -- | Creates and launches a shard
 newShard ::
   (P.Members '[LogEff, MetricEff, P.Embed IO, P.Final IO, P.Async] r) =>
+  Manager ->
   T.Text ->
   Int ->
   Int ->
@@ -166,10 +304,10 @@ newShard ::
   Intents ->
   UC.InChan CalamityEvent ->
   Sem r (UC.InChan ControlMessage, Async (Maybe ()))
-newShard gateway id count token presence intents evtIn = do
+newShard mgr gateway id count token presence intents evtIn = do
   (cmdIn, cmdOut) <- P.embed UC.newChan
   let shard = Shard id count gateway evtIn cmdOut (rawToken token) presence intents
-  stateVar <- P.embed . newIORef $ newShardState shard
+  stateVar <- P.embed . newIORef $ newShardState shard mgr
 
   let runShard = P.runAtomicStateIORef stateVar shardLoop
   let action = push "calamity-shard" . attr "shard-id" id $ runShard
@@ -227,7 +365,7 @@ shardLoop = do
             Left (ShutDownShard, Just . showt $ code)
       e -> Left (RestartShard, Just . T.pack . show $ e)
 
-    discordStream :: (P.Members '[LogEff, MetricEff, P.Embed IO, P.Final IO] r) => Connection -> TBMQueue ShardMsg -> Sem r ()
+    discordStream :: (P.Members '[LogEff, MetricEff, P.Embed IO, P.Final IO] r) => NW.Connection -> TBMQueue ShardMsg -> Sem r ()
     discordStream ws outqueue = inner
       where
         inner = do
@@ -250,11 +388,12 @@ shardLoop = do
     outerloop :: (ShardC r) => Sem r ()
     outerloop = whileMFinalIO $ do
       shard :: Shard <- P.atomicGets (^. #shardS)
+      mgr <- P.atomicGets (^. #httpManager)
       let host = shard ^. #gateway
       let host' = fromMaybe host $ T.stripPrefix "wss://" host
       info . T.pack $ "starting up shard " <> show (shardID shard) <> " of " <> show (shardCount shard)
 
-      innerLoopVal <- runWebsocket host' "/?v=9&encoding=json" innerloop
+      innerLoopVal <- runWebsocket mgr host' "/?v=9&encoding=json" innerloop
 
       case innerLoopVal of
         Just ShardFlowShutDown -> do
@@ -270,7 +409,7 @@ shardLoop = do
           info "Restarting shard (abnormal reasons?)"
           pure True
 
-    innerloop :: (ShardC r) => Connection -> Sem r ShardFlowControl
+    innerloop :: (ShardC r) => NW.Connection -> Sem r ShardFlowControl
     innerloop ws = do
       debug "Entering inner loop of shard"
 

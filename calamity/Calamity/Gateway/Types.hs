@@ -37,6 +37,7 @@ import Data.Aeson.Types qualified as AT
 import Data.Text (Text)
 import Data.Text qualified as T
 import GHC.Generics
+import Network.HTTP.Client (Manager)
 import Network.WebSockets.Connection (Connection)
 import Optics
 import Polysemy qualified as P
@@ -359,6 +360,7 @@ data ShardState = ShardState
   , wsHost :: Maybe Text
   , sessionID :: Maybe Text
   , wsConn :: Maybe Connection
+  , httpManager :: Manager
   }
 
 $(makeFieldLabelsNoPrefix ''Shard)

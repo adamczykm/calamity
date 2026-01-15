@@ -9,7 +9,6 @@ module Calamity.Client.Types (
   GuildDeleteStatus (..),
   EHType,
   BotC,
-  BotC',
   SetupEff,
   ReactConstraints,
   EventHandlers (..),
@@ -74,23 +73,6 @@ data Client = Client
 
 -- | Constraints required by the bot client
 type BotC r =
-  ( P.Members
-      '[ LogEff
-       , MetricEff
-       , CacheEff
-       , RatelimitEff
-       , TokenEff
-       , P.Reader Client
-       , P.AtomicState EventHandlers
-       , P.Embed IO
-       , P.Final IO
-       , P.Async
-       ]
-      r
-  )
-
--- | Extended bot constraints including HTTP config effect
-type BotC' r =
   ( P.Members
       '[ LogEff
        , MetricEff

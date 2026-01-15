@@ -20,6 +20,8 @@ module Calamity.Gateway.Intents (
   intentDirectMessages,
   intentDirectMessageReactions,
   intentDirectMessageTyping,
+  intentMessageContent,
+  intentGuildScheduledEvents,
 ) where
 
 import Data.Aeson (ToJSON)
@@ -48,16 +50,17 @@ $( bitmaskWrapper
      , ("intentDirectMessages", 1 `shiftL` 12)
      , ("intentDirectMessageReactions", 1 `shiftL` 13)
      , ("intentDirectMessageTyping", 1 `shiftL` 14)
+     , ("intentMessageContent", 1 `shiftL` 15)
      , ("intentGuildScheduledEvents", 1 `shiftL` 16)
      ]
  )
 
 deriving via Word32 instance ToJSON Intents
 
--- | Default intents are all but the privileged intents: members and intents
+-- | Default intents are all but the privileged intents: members, presences, and message content
 defaultIntents :: Intents
-defaultIntents = allBut (intentGuildMembers .+. intentGuildPresences)
+defaultIntents = allBut (intentGuildMembers .+. intentGuildPresences .+. intentMessageContent)
 
--- | Default intents are all but the privileged intents: members and intents
+-- | Default intents are all but the privileged intents: members, presences, and message content
 instance Default Intents where
   def = defaultIntents

@@ -23,7 +23,7 @@ mapLeft f (Left a) = Left $ f a
 mapLeft _ (Right b) = Right b
 
 -- | Connects the bot to the gateway over n shards
-shardBot :: (BotC' r) => Maybe StatusUpdateData -> Intents -> Sem r (Either StartupError ())
+shardBot :: (BotC r) => Maybe StatusUpdateData -> Intents -> Sem r (Either StartupError ())
 shardBot initialStatus intents = (mapLeft StartupError <$>) . P.runFail $ do
   numShardsVar <- P.asks numShards
   shardsVar <- P.asks shards

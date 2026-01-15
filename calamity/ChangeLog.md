@@ -1,38 +1,56 @@
 # Changelog for Calamity
 
+## 0.13.1.0
+
+### Features
+
++ Added `intentMessageContent` (bit 15) for the MESSAGE_CONTENT privileged intent
+  - Required to read message content in guild channels (Discord API change from September 2022)
+  - Without this intent, `content`, `embeds`, `attachments`, and `components` fields are empty in guild messages
+  - DMs and messages mentioning the bot are not affected
+  - Must also be enabled in the Discord Developer Portal under "Privileged Gateway Intents"
+  - **Not included in `defaultIntents`** - must be explicitly enabled:
+    ```haskell
+    runBotIO token (defaultIntents .+. intentMessageContent) $ do ...
+    ```
+
+### Exports
+
++ New export from `Calamity.Gateway.Intents`:
+  - `intentMessageContent` - The MESSAGE_CONTENT privileged intent
+
 ## 0.13.0.0
 
 ### Breaking Changes
+
++ `BotC` now includes `HttpConfigEff`
+  - All code using `BotC` constraint will now have access to HTTP configuration
+  - If you had custom effect stacks, you may need to add `HttpConfigEff` handling
 
 + Added `HttpConfigEff` effect for HTTP configuration management
   - All HTTP operations (via `invoke`) now require `HttpConfigEff` in their effect constraints
   - Bot runtime (`runBotIO*`) automatically interprets this effect using `Client.httpManager`
   - For custom effect stacks outside the bot runtime, use `interpretHttpConfigDefault`
 
-+ Updated type constraints for bot effects
-  - Introduced `BotC'` type alias that includes `HttpConfigEff`
-  - Internal modules using HTTP now require `BotC'` instead of `BotC`:
-    - `Calamity.Types.Tellable`: `tell`, `reply`, `getChannel`, `messageUser`
-    - `Calamity.Types.Upgradeable`: `upgrade`
-    - `Calamity.Utils.Permissions`: `permissionsIn'`
-    - `Calamity.Commands.Help`: `helpCommand'`, `helpCommand`
-    - `Calamity.Client.ShardManager`: `shardBot`
-    - `Calamity.Interactions.View`: `deleteInitialMsg`
-  - Interaction utilities now require `HttpConfigEff`:
-    - `respond`, `respondEphemeral`, `edit`, `followUp`, `followUpEphemeral`
-    - `defer`, `deferEphemeral`, `deferComponent`, `pushModal`
-
 ### Features
 
-+ HTTP proxy support via environment variables
++ Full HTTP proxy support
   - The bot now respects `HTTP_PROXY` and `HTTPS_PROXY` environment variables
-  - Custom TLS settings from `Client.httpManager` are properly propagated to all HTTP requests
+  - Both REST API requests and WebSocket gateway connections honor proxy settings
+  - WebSocket connections use HTTP CONNECT tunneling through proxies
+
++ New `runBotIOWithManager` variants for custom HTTP manager configuration
+  - `runBotIOWithManager`, `runBotIOWithManager'`, `runBotIOWithManager''`
+  - Allows passing a custom `Manager` with pre-configured proxy or TLS settings
 
 ### Exports
 
 + New exports from `Calamity.HTTP`:
   - `HttpConfigEff(..)` - Effect for HTTP configuration
   - `interpretHttpConfigDefault` - Interpreter for standalone HTTP operations
+
++ New exports from `Calamity.Client.Client`:
+  - `runBotIOWithManager`, `runBotIOWithManager'`, `runBotIOWithManager''`
 
 ### Migration Guide
 

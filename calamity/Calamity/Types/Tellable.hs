@@ -139,7 +139,7 @@ instance ToMessage CreateMessageOptions where
   intoMsg = Endo . const
 
 class Tellable a where
-  getChannel :: (BotC' r, P.Member (P.Error RestError) r) => a -> P.Sem r (Snowflake Channel)
+  getChannel :: (BotC r, P.Member (P.Error RestError) r) => a -> P.Sem r (Snowflake Channel)
 
 runToMessage :: (ToMessage a) => a -> CreateMessageOptions
 runToMessage = flip appEndo def . intoMsg
@@ -157,7 +157,7 @@ runToMessage = flip appEndo def . intoMsg
  'void' $ 'tell' @'Text' m ("Somebody told me to tell you about: " '<>' s)
  @
 -}
-tell :: forall msg r t. (BotC' r, ToMessage msg, Tellable t) => t -> msg -> P.Sem r (Either RestError Message)
+tell :: forall msg r t. (BotC r, ToMessage msg, Tellable t) => t -> msg -> P.Sem r (Either RestError Message)
 tell target (runToMessage -> msg) = P.runError $ do
   cid <- getChannel target
   r <- invoke $ CreateMessage cid msg
@@ -176,7 +176,7 @@ tell target (runToMessage -> msg) = P.runError $ do
  'void' $ 'reply' @'Text' msgToReplyTo ("Somebody told me to tell you about: " '<>' s)
  @
 -}
-reply :: forall msg r t. (BotC' r, ToMessage msg, HasID Channel t, HasID Message t) => t -> msg -> P.Sem r (Either RestError Message)
+reply :: forall msg r t. (BotC r, ToMessage msg, HasID Channel t, HasID Message t) => t -> msg -> P.Sem r (Either RestError Message)
 reply target msg = P.runError $ do
   let msg' = runToMessage (intoMsg msg <> intoMsg (MessageReference (Just $ getID @Message target) (Just $ getID @Channel target) Nothing False))
   r <- invoke $ CreateMessage (getID @Channel target) msg'
@@ -203,7 +203,7 @@ instance Tellable (Snowflake TextChannel) where
 instance Tellable Message where
   getChannel = pure . getID
 
-messageUser :: (BotC' r, P.Member (P.Error RestError) r, HasID User a) => a -> P.Sem r (Snowflake Channel)
+messageUser :: (BotC r, P.Member (P.Error RestError) r, HasID User a) => a -> P.Sem r (Snowflake Channel)
 messageUser (getID @User -> uid) = do
   c <- invoke $ CreateDM uid
   getID <$> P.fromEither c

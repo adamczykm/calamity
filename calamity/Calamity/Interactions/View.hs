@@ -21,7 +21,7 @@ module Calamity.Interactions.View (
 ) where
 
 import Calamity.Client.Client (react)
-import Calamity.Client.Types (BotC, BotC', Client, EventType (InteractionEvt))
+import Calamity.Client.Types (BotC, Client, EventType (InteractionEvt))
 import Calamity.HTTP.Channel (ChannelRequest (DeleteMessage))
 import Calamity.HTTP.Internal.Config (HttpConfigEff, interpretHttpConfigFromClient)
 import Calamity.HTTP.Internal.Ratelimit (RatelimitEff)
@@ -319,7 +319,7 @@ instantiateView g v =
        in (ViewInstance inv (ra <> rb), g'')
 
 -- | Delete the initial message containing components
-deleteInitialMsg :: (BotC' r, P.Member (ViewEff a inp (Either e Message)) r) => P.Sem r ()
+deleteInitialMsg :: (BotC r, P.Member (ViewEff a inp (Either e Message)) r) => P.Sem r ()
 deleteInitialMsg = do
   ini <- getSendResponse
   case ini of

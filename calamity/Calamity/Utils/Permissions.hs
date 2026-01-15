@@ -84,7 +84,7 @@ instance PermissionsIn Guild where
 -- | A variant of 'PermissionsIn' that will use the cache/http.
 class PermissionsIn' a where
   -- | Calculate the permissions of something that has a 'User' id
-  permissionsIn' :: (BotC' r, HasID User u) => a -> u -> P.Sem r Permissions
+  permissionsIn' :: (BotC r, HasID User u) => a -> u -> P.Sem r Permissions
 
 {- | A 'User''s 'Permissions' in a channel are their roles and overwrites
 

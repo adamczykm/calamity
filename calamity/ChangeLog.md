@@ -1,5 +1,21 @@
 # Changelog for Calamity
 
+## 0.13.2.0
+
+### Security
+
++ Added a shared internal redaction layer for sensitive Discord tokens
+
++ Redacted `Show` and `TextShow` output for token-bearing types such as bot tokens,
+  interaction tokens, webhook tokens, and gateway identify/resume payloads
+
++ Redacted token-bearing gateway payload logs and request route labels so bot,
+  interaction, and webhook tokens are not emitted in plaintext
+
+### Tests
+
++ Added a regression test suite covering token, route, and JSON redaction
+
 ## 0.13.1.0
 
 ### Features

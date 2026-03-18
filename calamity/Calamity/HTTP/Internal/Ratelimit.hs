@@ -5,13 +5,15 @@ module Calamity.HTTP.Internal.Ratelimit (
   newRateLimitState,
   doRequest,
   RatelimitEff (..),
-  getRatelimitState,
+  getRatelimitState
 ) where
 
 import Calamity.HTTP.Internal.Route
 import Calamity.HTTP.Internal.Types
+import Calamity.Internal.Redaction (redactDiscordRouteText, redactTokensInText)
 import Calamity.Internal.Utils
 import Calamity.Types.LogEff
+import Calamity.Types.Token (rawToken)
 import Calamity.Types.TokenEff
 import Control.Applicative
 import Control.Concurrent
@@ -211,6 +213,8 @@ useBucketOnce bucket = go 0
 
 doDiscordRequest :: (P.Members '[RatelimitEff, TokenEff, LogEff, P.Embed IO] r) => IO LbsResponse -> Sem r DiscordResponseType
 doDiscordRequest r = do
+  token <- getBotToken
+  let redactLog = redactDiscordRouteText . redactTokensInText [rawToken token]
   r'' <- P.embed $ Ex.catchAny (Right <$> r) (pure . Left . Ex.displayException)
   case r'' of
     Right r' -> do
@@ -232,13 +236,13 @@ doDiscordRequest r = do
                 pure $ ServerError (statusCode status)
         | statusIsClientError status -> do
             let err = responseBody r'
-            error . T.pack $ "Something went wrong: " <> show err <> ", response: " <> show r'
+            error . redactLog . T.pack $ "Something went wrong: " <> show err <> ", response: " <> show r'
             pure $ ClientError (statusCode status) err
         | otherwise -> do
             debug . T.pack $ "Got server error from discord: " <> (show . statusCode $ status)
             pure $ ServerError (statusCode status)
     Left e -> do
-      error . T.pack $ "Something went wrong with the http client: " <> e
+      error . redactLog $ "Something went wrong with the http client: " <> T.pack e
       pure . InternalResponseError $ T.pack e
 
 -- | Parse a ratelimit header returning when it unlocks

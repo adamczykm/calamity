@@ -8,9 +8,10 @@ module Calamity.Types.Model.Interaction (
   ResolvedInteractionData (..),
   InteractionType (..),
   Application,
-  ApplicationCommand,
+  ApplicationCommand
 ) where
 
+import Calamity.Internal.Redaction (redactToken)
 import Calamity.Types.Model.Channel (Attachment, Channel, Partial)
 import Calamity.Types.Model.Channel.Component
 import Calamity.Types.Model.Channel.Message (Message)
@@ -36,8 +37,15 @@ data ApplicationCommand
 newtype InteractionToken = InteractionToken
   { fromInteractionToken :: T.Text
   }
-  deriving stock (Show)
   deriving (Aeson.FromJSON, Aeson.ToJSON) via T.Text
+
+instance Show InteractionToken where
+  showsPrec _ InteractionToken {fromInteractionToken} =
+    showString "InteractionToken {fromInteractionToken = "
+      . shows (redactToken fromInteractionToken)
+      . showChar '}'
+
+deriving via TextShow.FromStringShow InteractionToken instance TextShow.TextShow InteractionToken
 
 data Interaction = Interaction
   { id :: Snowflake Interaction
@@ -140,7 +148,6 @@ instance Aeson.FromJSON InteractionType where
     Just 5 -> pure ModalSubmitType
     _ -> fail $ "Invalid InteractionType: " <> show n
 
-$(deriveTextShow ''InteractionToken)
 $(deriveTextShow ''InteractionType)
 $(deriveTextShow ''Interaction)
 $(makeFieldLabelsNoPrefix ''InteractionToken)

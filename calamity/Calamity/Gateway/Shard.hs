@@ -13,16 +13,7 @@ import Calamity.Gateway.DispatchEvents (
 import Calamity.Gateway.Intents (Intents)
 import Calamity.Gateway.Types (
   ControlMessage (..),
-  IdentifyData (
-    IdentifyData,
-    compress,
-    intents,
-    largeThreshold,
-    presence,
-    properties,
-    shard,
-    token
-  ),
+  IdentifyData (..),
   IdentifyProps (IdentifyProps, browser, device),
   ReceivedDiscordMessage (
     EvtDispatch,
@@ -32,7 +23,7 @@ import Calamity.Gateway.Types (
     InvalidSession,
     Reconnect
   ),
-  ResumeData (ResumeData, seq, sessionID, token),
+  ResumeData (..),
   SentDiscordMessage (HeartBeat, Identify, Resume, StatusUpdate),
   Shard (..),
   ShardC,
@@ -41,6 +32,7 @@ import Calamity.Gateway.Types (
   ShardState (ShardState, wsConn),
   StatusUpdateData,
  )
+import Calamity.Internal.Redaction (redactDiscordJSON)
 import Calamity.Internal.RunIntoIO (bindSemToIO)
 import Calamity.Internal.Utils (
   debug,
@@ -81,13 +73,13 @@ import Control.Exception.Safe qualified as Ex
 import Control.Monad (unless, void, when)
 import Control.Monad.State.Lazy (runState)
 import Data.Aeson qualified as A
+import Data.ByteString qualified as BS
+import Data.ByteString.Char8 qualified as BS8
 import Data.ByteString.Lazy qualified as LBS
 import Data.Default.Class (def)
 import Data.IORef (newIORef)
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as T
-import Data.ByteString qualified as BS
-import Data.ByteString.Char8 qualified as BS8
 import DiPolysemy (attr, push)
 import Network.Connection qualified as NC
 import Network.HTTP.Client (Manager, Proxy (..))
@@ -251,7 +243,11 @@ connectThroughHttpProxy proxyHost proxyPort targetHost targetPort clientParams =
   unless (BS.isPrefixOf "HTTP/1.1 200" responseLine || BS.isPrefixOf "HTTP/1.0 200" responseLine) $
     throwIO $
       userError $
-        "Proxy CONNECT to " <> targetHost <> ":" <> show targetPort <> " failed. "
+        "Proxy CONNECT to "
+          <> targetHost
+          <> ":"
+          <> show targetPort
+          <> " failed. "
           <> "Proxy response: "
           <> BS8.unpack responseLine
 
@@ -302,7 +298,7 @@ connectionGetExactly conn n = go n []
     go remaining acc = do
       chunk <- NC.connectionGet conn remaining
       if BS.null chunk
-        then pure $ BS.concat (reverse acc)  -- EOF reached
+        then pure $ BS.concat (reverse acc) -- EOF reached
         else go (remaining - BS.length chunk) (chunk : acc)
 
 newShardState :: Shard -> Manager -> ShardState
@@ -338,7 +334,7 @@ sendToWs data' = do
   case wsConn' of
     Just wsConn -> do
       let encodedData = A.encode data'
-      debug . T.pack $ "sending " <> show data' <> " encoded to " <> show encodedData <> " to gateway"
+      debug . T.pack $ "sending " <> show data' <> " encoded to " <> show (redactDiscordJSON encodedData) <> " to gateway"
       P.embed . sendTextData wsConn $ encodedData
     Nothing -> debug "tried to send to closed WS"
 
@@ -398,7 +394,7 @@ shardLoop = do
                 Right a ->
                   P.embed . atomically $ tryWriteTBMQueue' outqueue (Discord a)
                 Left e -> do
-                  error . T.pack $ "Failed to decode " <> e <> ": " <> show msg'
+                  error . T.pack $ "Failed to decode " <> e <> ": " <> show (redactDiscordJSON msg')
                   pure True
               when r inner
     outerloop :: (ShardC r) => Sem r ()

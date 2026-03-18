@@ -1,6 +1,6 @@
 cabal-version:      2.0
 name:               calamity
-version:            0.13.1.0
+version:            0.13.2.0
 synopsis:           A library for writing discord bots in haskell
 description:
   Please see the README on GitHub at <https://github.com/simmsb/calamity#readme>
@@ -70,6 +70,7 @@ library
     Calamity.Internal.ConstructorName
     Calamity.Internal.IntColour
     Calamity.Internal.LocalWriter
+    Calamity.Internal.Redaction
     Calamity.Internal.RunIntoIO
     Calamity.Internal.SnowflakeMap
     Calamity.Internal.UnixTimestamp
@@ -235,5 +236,19 @@ library
     , unordered-containers  >=0.2      && <0.3
     , vector                >=0.12     && <0.14
     , websockets            >=0.13     && <0.14
+
+  default-language:   Haskell2010
+
+test-suite calamity-redaction
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            RedactionSpec.hs
+  build-depends:
+      aeson                 >=2.1      && <2.3
+    , base                  >=4.13     && <5
+    , bytestring            >=0.10     && <0.13
+    , calamity
+    , text                  >=1.2      && <2.2
+    , text-show             >=3.8      && <4
 
   default-language:   Haskell2010

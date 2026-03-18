@@ -15,11 +15,12 @@ module Calamity.Gateway.Types (
   ControlMessage (..),
   ShardFlowControl (..),
   Shard (..),
-  ShardState (..),
+  ShardState (..)
 ) where
 
 import Calamity.Gateway.DispatchEvents
 import Calamity.Gateway.Intents
+import Calamity.Internal.Redaction (redactToken)
 import Calamity.Internal.Utils (CalamityToJSON (..), CalamityToJSON' (..), (.=), (.?=))
 import Calamity.Metrics.Eff
 import Calamity.Types.LogEff
@@ -253,8 +254,25 @@ data IdentifyData = IdentifyData
   , presence :: Maybe StatusUpdateData
   , intents :: Intents
   }
-  deriving (Show)
   deriving (Aeson.ToJSON) via CalamityToJSON IdentifyData
+
+instance Show IdentifyData where
+  showsPrec _ IdentifyData {token, properties, compress, largeThreshold, shard, presence, intents} =
+    showString "IdentifyData {token = "
+      . shows (redactToken token)
+      . showString ", properties = "
+      . shows properties
+      . showString ", compress = "
+      . shows compress
+      . showString ", largeThreshold = "
+      . shows largeThreshold
+      . showString ", shard = "
+      . shows shard
+      . showString ", presence = "
+      . shows presence
+      . showString ", intents = "
+      . shows intents
+      . showChar '}'
 
 instance CalamityToJSON' IdentifyData where
   toPairs IdentifyData {..} =
@@ -289,8 +307,17 @@ data ResumeData = ResumeData
   , sessionID :: Text
   , seq :: Int
   }
-  deriving (Show)
   deriving (Aeson.ToJSON) via CalamityToJSON ResumeData
+
+instance Show ResumeData where
+  showsPrec _ ResumeData {token, sessionID, seq} =
+    showString "ResumeData {token = "
+      . shows (redactToken token)
+      . showString ", sessionID = "
+      . shows sessionID
+      . showString ", seq = "
+      . shows seq
+      . showChar '}'
 
 instance CalamityToJSON' ResumeData where
   toPairs ResumeData {..} =

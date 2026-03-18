@@ -17,7 +17,7 @@ module Calamity.HTTP.Internal.Request (
   postEmptyP,
   getWithP,
   deleteWith,
-  (=:?),
+  (=:?)
 ) where
 
 import Calamity.HTTP.Internal.Config (HttpConfigEff, baseReqConfig)
@@ -25,6 +25,7 @@ import Calamity.HTTP.Internal.Config qualified as HttpCfg
 import Calamity.HTTP.Internal.Ratelimit
 import Calamity.HTTP.Internal.Route
 import Calamity.HTTP.Internal.Types
+import Calamity.Internal.Redaction (redactDiscordRouteText)
 import Calamity.Metrics.Eff
 import Calamity.Types.LogEff (LogEff)
 import Calamity.Types.Token
@@ -96,16 +97,17 @@ invokeWithHttpConfig cfg a = do
   token' <- getBotToken
 
   let route' = route a
+      renderedRoute = redactDiscordRouteText . renderUrl $ route' ^. #path
 
-  inFlightRequests <- registerGauge "inflight_requests" [("route", renderUrl $ route' ^. #path)]
-  totalRequests <- registerCounter "total_requests" [("route", renderUrl $ route' ^. #path)]
+  inFlightRequests <- registerGauge "inflight_requests" [("route", renderedRoute)]
+  totalRequests <- registerCounter "total_requests" [("route", renderedRoute)]
   void $ modifyGauge (+ 1) inFlightRequests
   void $ addCounter 1 totalRequests
 
   let r = action a (route' ^. #path) (requestOptions token')
       act = runReq cfg r
 
-  resp <- push "calamity" . attr "route" (renderUrl $ route' ^. #path) $ doRequest rlState' route' act
+  resp <- push "calamity" . attr "route" renderedRoute $ doRequest rlState' route' act
 
   void $ modifyGauge (subtract 1) inFlightRequests
 

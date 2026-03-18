@@ -4,17 +4,17 @@
 module Calamity.Types.Token (
   Token (..),
   formatToken,
-  rawToken,
+  rawToken
 ) where
 
+import Calamity.Internal.Redaction (redactToken)
 import Data.Text (Text)
 import Optics.TH
-import TextShow.TH (deriveTextShow)
+import TextShow qualified
 
 data Token
   = BotToken Text
   | UserToken Text
-  deriving (Show)
 
 formatToken :: Token -> Text
 formatToken (BotToken t) = "Bot " <> t
@@ -24,5 +24,14 @@ rawToken :: Token -> Text
 rawToken (BotToken t) = t
 rawToken (UserToken t) = t
 
-$(deriveTextShow ''Token)
+instance Show Token where
+  showsPrec d (BotToken t) =
+    showParen (d > 10) $
+      showString "BotToken " . shows (redactToken t)
+  showsPrec d (UserToken t) =
+    showParen (d > 10) $
+      showString "UserToken " . shows (redactToken t)
+
+deriving via TextShow.FromStringShow Token instance TextShow.TextShow Token
+
 $(makeFieldLabelsNoPrefix ''Token)
